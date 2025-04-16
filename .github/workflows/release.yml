@@ -18,6 +18,7 @@ on:
 
 jobs:
   validate_branch:
+    name: Validate
     runs-on: ubuntu-latest
     steps:
       - name: Validate branch format
@@ -41,7 +42,10 @@ jobs:
 
   release:
     needs: validate_branch
+    name: Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
