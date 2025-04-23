@@ -1,114 +1,30 @@
-name: Release GitHub Action
-
+name: Release Action
 on:
   workflow_dispatch:
     inputs:
       release_type:
-        description: "Type of version update"
+        description: "Type of release to create"
         required: true
-        default: "minor"
+        default: "minor_release"
         type: choice
         options:
-          - minor
-          - major
-
+          - "minor_release"
+          - "major_branch"
 jobs:
-  validate_branch:
-    name: Validate
+  release:
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Validate branch format
-        id: validate
-        run: |
-          # Get the current branch name
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          echo "Current branch: $BRANCH_NAME"
-
-          # Check if branch follows the v{number}-dev pattern
-          if ! [[ "$BRANCH_NAME" =~ ^v[0-9]+-dev$ ]]; then
-            echo "::error::This workflow can only run on branches with the format v{number}-dev (e.g., v1-dev, v2-dev)"
-            exit 1
-          fi
-
-          # Extract major version and save it as output
-          MAJOR_VERSION=$(echo $BRANCH_NAME | sed 's/v\([0-9]*\)-dev/\1/')
-          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          echo "major_version=$MAJOR_VERSION" >> $GITHUB_OUTPUT
-
-  release:
-    name: Release
-    needs: validate_branch
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
+      - name: Create Release
+        uses: p6m-actions/repository-release@v1
         with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Get validated branch info
-        id: branch
-        run: |
-          BRANCH_NAME=${GITHUB_REF#refs/heads/}
-          MAJOR_VERSION=$(echo $BRANCH_NAME | sed 's/v\([0-9]*\)-dev/\1/')
-          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
-          echo "major_version=$MAJOR_VERSION" >> $GITHUB_OUTPUT
-
-      - name: Set up version variables
-        id: vars
-        run: |
-          # Get latest minor version for this major version
-          LATEST_MINOR=$(git tag -l "v${{ steps.branch.outputs.major_version }}.*" | sort -V | tail -n 1)
-
-          # Determine new version based on release type
-          if [ "${{ github.event.inputs.release_type }}" = "major" ]; then
-            # For a major version, increment the major version
-            NEW_MAJOR=$((${{ steps.branch.outputs.major_version }} + 1))
-            NEW_VERSION="v${NEW_MAJOR}.0"
-            echo "Creating new major version: $NEW_VERSION"
-            echo "target_major_version=${NEW_MAJOR}" >> $GITHUB_OUTPUT
-          else
-            # For a minor version update
-            if [ -z "$LATEST_MINOR" ]; then
-              # No existing versions, start with .0
-              NEW_VERSION="v${{ steps.branch.outputs.major_version }}.0"
-            else
-              # Increment minor version
-              MINOR_NUM=$(echo $LATEST_MINOR | sed "s/v${{ steps.branch.outputs.major_version }}\.\([0-9]*\)/\1/")
-              NEW_MINOR=$((MINOR_NUM + 1))
-              NEW_VERSION="v${{ steps.branch.outputs.major_version }}.${NEW_MINOR}"
-            fi
-            echo "target_major_version=${{ steps.branch.outputs.major_version }}" >> $GITHUB_OUTPUT
-          fi
-
-          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
-
-      - name: Create version tags
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-
-          echo "Creating new tag: ${{ steps.vars.outputs.new_version }}"
-          git tag -f ${{ steps.vars.outputs.new_version }}
-
-          # Update the major version tag
-          echo "Updating major version tag: v${{ steps.vars.outputs.target_major_version }} to point to ${{ steps.vars.outputs.new_version }}"
-          git tag -f v${{ steps.vars.outputs.target_major_version }} ${{ steps.vars.outputs.new_version }}
-
-          # Push using the provided token
-          git push --tags origin
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          name: Release ${{ steps.vars.outputs.new_version }}
-          tag_name: ${{ steps.vars.outputs.new_version }}
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          release_type: ${{ github.event.inputs.release_type }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
