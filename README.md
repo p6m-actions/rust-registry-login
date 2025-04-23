@@ -1,5 +1,7 @@
 # Cargo Registry Login
 
+![Latest Release](https://img.shields.io/github/v/release/p6m-actions/rust-repository-login?style=flat-square&label=Latest%20Release&color=blue)
+
 ## Description
 
 This action configures Cargo registry authentication by setting the appropriate environment variables based on provided registry tokens. It supports authentication for crates.io and any custom registries.
